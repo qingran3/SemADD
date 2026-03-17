@@ -25,7 +25,19 @@ contact_bodies: ["right_foot", "left_foot"]
 #contact_bodies: ["right_hand", "left_hand", "right_foot", "left_foot"] # cartwheel
 #contact_bodies: [] # roll and crawl
 
-motion_file: "data/motions/humanoid/humanoid_spinkick.pkl"
+motion_file: "data/motions/humanoid/humanoid_backflip.pkl"
+
+# Global semantic (episode-constant) appended to observation.
+global_semantic:
+  enabled: true
+  type: "clip_text"
+  prompt: "a humanoid performing a backflip"
+  model_name: "ViT-B-32"
+  pretrained: "openai"
+  proj_dim: 512 #[64, 128, 256, 512]
+  cache_path: "data/semantics/clip_text_humanoid_backflip_512.npy"
+  l2_normalize: true
+  proj_seed: 0
 
 reward_pose_w: 0.5
 reward_vel_w: 0.1

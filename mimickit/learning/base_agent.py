@@ -49,7 +49,7 @@ class BaseAgent(torch.nn.Module):
         self._curr_info = None
         return
 
-    def train_model(self, max_samples, out_dir, save_int_models, logger_type):
+    def train_model(self, max_samples, out_dir, save_int_models, logger_type, save_interval=0):
         start_time = time.time()
 
         out_model_file = os.path.join(out_dir, "model.pt")
@@ -79,12 +79,18 @@ class BaseAgent(torch.nn.Module):
             self._log_train_info(train_info, test_info, env_diag_info, start_time) 
             self._logger.print_log()
 
-            if (output_iter):
+            if output_iter:
                 self._logger.write_log()
+
+            do_save_interval = (save_interval > 0) and (self._iter > 0) and (self._iter % save_interval == 0)
+            is_last_iter = (self._sample_count >= max_samples)
+
+            if do_save_interval or (output_iter and is_last_iter):
                 self._output_train_model(self._iter, out_model_file, int_out_dir)
 
-                self._train_return_tracker.reset()
-                self._curr_obs, self._curr_info = self._reset_envs()
+                if not is_last_iter:
+                    self._train_return_tracker.reset()
+                    self._curr_obs, self._curr_info = self._reset_envs()
             
             self._iter += 1
 
@@ -419,10 +425,16 @@ class BaseAgent(torch.nn.Module):
 
     def _output_train_model(self, iter, out_model_file, int_out_dir):
         self.save(out_model_file)
-
+        
         if (int_out_dir != ""):
-            int_model_file = os.path.join(int_out_dir, "model_{:010d}.pt".format(iter))
+            int_model_file = os.path.join(int_out_dir, f"model_{iter}.pt")
             self.save(int_model_file)
+        
+        if (iter > 0):
+            out_dir = os.path.dirname(out_model_file)
+            short_ckpt = os.path.join(out_dir, f"model_{iter}.pt")
+            self.save(short_ckpt)
+        
         return
     
     @abc.abstractmethod

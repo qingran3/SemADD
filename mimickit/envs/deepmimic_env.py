@@ -8,6 +8,7 @@ import envs.char_env as char_env
 import engines.engine as engine
 import util.stats_tracker as stats_tracker
 import util.torch_util as torch_util
+import util.clip_semantic as clip_semantic
 
 class DeepMimicEnv(char_env.CharEnv):
     def __init__(self, env_config, engine_config, num_envs, device, visualize, record_video=False):
@@ -38,6 +39,16 @@ class DeepMimicEnv(char_env.CharEnv):
         self._reward_key_pos_scale = env_config.get("reward_key_pos_scale")
         
         self._visualize_ref_char = env_config.get("visualize_ref_char", True)
+
+        # Episode-constant global semantic vector (e.g., CLIP text embedding projected to a smaller dim).
+        # This is appended to the observation at every step.
+        sem_vec, sem_dim = clip_semantic.build_global_semantic_vector(
+            env_config=env_config,
+            device=device,
+            dtype=torch.float32,
+        )
+        self._global_sem_vec = sem_vec  # [1, sem_dim]
+        self._global_sem_dim = sem_dim
         
         super().__init__(env_config=env_config, engine_config=engine_config,
                          num_envs=num_envs, device=device, visualize=visualize,
@@ -403,6 +414,15 @@ class DeepMimicEnv(char_env.CharEnv):
                                     tar_root_rot=tar_root_rot,
                                     tar_joint_rot=tar_joint_rot,
                                     tar_key_pos=tar_key_pos)
+
+        if self._global_sem_dim > 0:
+            sem = self._global_sem_vec
+            if env_ids is not None:
+                batch = env_ids.shape[0]
+            else:
+                batch = obs.shape[0]
+            sem = sem.expand(batch, -1)
+            obs = torch.cat([obs, sem], dim=-1)
         return obs
     
     def _update_reward(self):

@@ -43,9 +43,10 @@ def build_agent(args, env, device):
     agent = agent_builder.build_agent(agent_file, env, device)
     return agent
 
-def train(agent, max_samples, out_dir, save_int_models, logger_type):
+def train(agent, max_samples, out_dir, save_int_models, logger_type, save_interval):
     agent.train_model(max_samples=max_samples, out_dir=out_dir, 
-                      save_int_models=save_int_models, logger_type=logger_type)
+                      save_int_models=save_int_models, logger_type=logger_type,
+                      save_interval=save_interval)
     return
 
 def test(agent, test_episodes):
@@ -101,26 +102,56 @@ def run(rank, num_procs, device, master_port, args):
     logger_type = args.parse_string("logger", "txt")
     model_file = args.parse_string("model_file", "")
 
-    out_dir = args.parse_string("out_dir", "output/")
+    out_dir_root = args.parse_string("out_dir", "output/")
     save_int_models = args.parse_bool("save_int_models", False)
+    save_interval = args.parse_int("save", 0)
     max_samples = args.parse_int("max_samples", np.iinfo(np.int64).max)
 
     mp_util.init(rank, num_procs, device, master_port)
 
     set_rand_seed(args)
     set_np_formatting()
-    create_output_dir(out_dir)
+    create_output_dir(out_dir_root)
 
     env = build_env(args, num_envs, device, visualize)
+
+    # Print observation dimensions (root process only).
+    if mp_util.is_root_proc():
+        obs_dim_now = int(np.prod(env.get_obs_space().shape))
+        disc_dim = None
+        if hasattr(env, "get_disc_obs_space"):
+            try:
+                disc_dim = int(np.prod(env.get_disc_obs_space().shape))
+            except Exception:
+                disc_dim = None
+
+        clip_dim = int(getattr(env, "_global_sem_dim", 0))
+        obs_dim_before_clip = obs_dim_now - clip_dim if clip_dim > 0 else obs_dim_now
+
+        Logger.print(
+            "Obs dims: total={:d}, clip={:d}, before_clip={:d}, disc={}".format(
+                obs_dim_now,
+                clip_dim,
+                obs_dim_before_clip,
+                str(disc_dim),
+            )
+        )
+
     agent = build_agent(args, env, device)
 
     if (model_file != ""):
         agent.load(model_file)
 
     if (mode == "train"):
+        # Create a timestamped run directory to avoid overwriting previous results.
+        time_tag = time.strftime("%Y%m%d_%H%M%S")
+        out_dir = os.path.join(out_dir_root, time_tag)
+        create_output_dir(out_dir)
+
         save_config_files(args, out_dir)
         train(agent=agent, max_samples=max_samples, out_dir=out_dir, 
-              save_int_models=save_int_models, logger_type=logger_type)
+              save_int_models=save_int_models, logger_type=logger_type,
+              save_interval=save_interval)
         
     elif (mode == "test"):
         test_episodes = args.parse_int("test_episodes", np.iinfo(np.int64).max)
