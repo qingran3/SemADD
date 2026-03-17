@@ -21,9 +21,9 @@ init_pose: [0, 0, 0.882416, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.5708, 0, 0, 0, -1.5708,
 
 enable_early_termination: True
 key_bodies: ["head", "right_hand", "left_hand", "right_foot", "left_foot"]
-contact_bodies: ["right_foot", "left_foot"]
+#contact_bodies: ["right_foot", "left_foot"]
 #contact_bodies: ["right_hand", "left_hand", "right_foot", "left_foot"] # cartwheel
-contact_bodies: ["roll"] # roll and crawl
+contact_bodies: [] # roll and crawl
 
 motion_file: "data/motions/humanoid/humanoid_roll.pkl"
 
