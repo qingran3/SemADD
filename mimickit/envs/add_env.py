@@ -152,6 +152,30 @@ def compute_disc_vel_obs(root_rot, root_vel, root_ang_vel, dof_vel, global_obs):
     return obs
 
 @torch.jit.script
+def compute_disc_trend_obs(root_pos, root_vel):
+    # type: (Tensor, Tensor) -> Tensor
+    # root_pos: [B, T, 3], root_vel: [B, T, 3]
+    # We assume the last timestep is the most recent one (consistent with AMPEnv).
+    z = root_pos[..., 2]  # [B, T]
+    vz = root_vel[..., 2]  # [B, T]
+
+    z_last = z[..., -1:]  # [B, 1]
+    z_rel = z - z_last    # [B, T], relative height history
+
+    # Oldest-to-latest relative change (captures "crouch down" or "takeoff up").
+    z_delta = z_rel[..., 0:1]  # [B, 1]
+
+    # Window statistics (relative, more invariant than absolute height).
+    z_rel_min = torch.min(z_rel, dim=-1, keepdim=True).values  # [B, 1]
+    z_rel_max = torch.max(z_rel, dim=-1, keepdim=True).values  # [B, 1]
+
+    # Vertical velocity statistics.
+    vz_mean = torch.mean(vz, dim=-1, keepdim=True)  # [B, 1]
+    vz_last = vz[..., -1:]  # [B, 1]
+
+    return torch.cat([z_delta, z_rel_min, z_rel_max, vz_mean, vz_last], dim=-1)
+
+@torch.jit.script
 def compute_disc_obs(root_pos, root_rot, root_vel, root_ang_vel, joint_rot, dof_vel, body_pos, global_obs):
     # type: (Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, bool) -> Tensor
 
@@ -167,7 +191,18 @@ def compute_disc_obs(root_pos, root_rot, root_vel, root_ang_vel, joint_rot, dof_
                                   dof_vel=dof_vel,
                                   global_obs=global_obs)
 
-    disc_obs = torch.cat([pos_obs, vel_obs], dim=-1)
+    # When the discriminator window size is 1, match the original ADD formulation:
+    # discriminator observes only pose and velocity features (no temporal trend).
+    if root_pos.shape[1] == 1:
+        disc_obs = torch.cat([pos_obs, vel_obs], dim=-1)
+    else:
+        # Temporal-window trend features derived from root motion.
+        # These are appended so that the differential vector Δ (demo - agent)
+        # also contains short-horizon dynamics / phase cues.
+        trend_obs = compute_disc_trend_obs(root_pos=root_pos, root_vel=root_vel)  # [B, 5]
+        trend_obs = trend_obs.unsqueeze(1)
+        trend_obs = trend_obs.repeat(1, root_pos.shape[1], 1)
+        disc_obs = torch.cat([pos_obs, vel_obs, trend_obs], dim=-1)
     disc_obs = torch.reshape(disc_obs, [disc_obs.shape[0], -1])
 
     return disc_obs
