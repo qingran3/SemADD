@@ -12,7 +12,7 @@ enable_phase_obs: False
 enable_tar_obs: True
 num_phase_encoding: 4
 tar_obs_steps: [1, 2, 3]
-num_disc_obs_steps: 10
+num_disc_obs_steps: 1
 rand_reset: True
 log_tracking_error: True
 
@@ -35,7 +35,7 @@ global_semantic:
   model_name: "ViT-B-32"
   pretrained: "openai"
   proj_dim: 512 #[64, 128, 256, 512]
-  cache_path: "data/semantics/clip_text_humanoid_run_512.npy"
+  cache_path: "data/semantics/clip_humanoid_run_512.npy"
   l2_normalize: true
   proj_seed: 0
 
