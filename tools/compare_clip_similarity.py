@@ -132,7 +132,7 @@ def main() -> None:
     ap.add_argument("--device", default="cpu", help="cpu or cuda:0")
     args = ap.parse_args()
 
-    # 3 actions x 2 prompt styles (short vs sentence), matching common training prompts.
+    # 4 actions x 2 prompt styles (short vs sentence), matching common training prompts.
     prompts = [
         "humanoid spinkick",
         "a humanoid performing a spinning kick",
@@ -140,6 +140,8 @@ def main() -> None:
         "a humanoid performing a roll",
         "humanoid backflip",
         "a humanoid performing a backflip",
+        "humanoid run",
+        "a humanoid running forward",
     ]
 
     x = encode_text_open_clip(prompts, args.model, args.pretrained, args.device).to(dtype=torch.float32)
